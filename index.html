@@ -19,12 +19,25 @@
 
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-weather="0">
+  <!-- 背景の天気（得点で 0:雨 → 1:くもり → 2:晴れ間 → 3:晴れ → 4:快晴 と変わる） -->
   <div class="sky">
+    <div class="sky-layer s0"></div>
+    <div class="sky-layer s1"></div>
+    <div class="sky-layer s2"></div>
+    <div class="sky-layer s3"></div>
+    <div class="sky-layer s4"></div>
+    <div class="rainbow"></div>
     <div class="sun"></div>
     <div class="cloud c1"></div>
     <div class="cloud c2"></div>
+    <div class="cloud c3"></div>
+    <div class="cloud c4"></div>
+    <div class="cloud c5"></div>
   </div>
+  <div class="ground-shade"></div>
+  <div class="rain" id="rain"></div>
+  <div class="flowers" id="flowers"></div>
 
   <main class="game">
     <h1 class="title">もぐらたたき</h1>
@@ -83,13 +96,7 @@
   </template>
 
   <script src="script.js"></script>
-  <script>
-    // オフラインでも遊べるように Service Worker を登録（https または localhost のときだけ動く）
-    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('service-worker.js').catch(() => { /* 登録できなくてもゲームは遊べる */ });
-      });
-    }
-  </script>
+  <!-- オフライン対応と、新しいバージョンへの自動更新 -->
+  <script src="pwa.js"></script>
 </body>
 </html>

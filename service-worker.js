@@ -1,16 +1,21 @@
 // もぐらたたき Service Worker
 // ・初回に必要なファイルを保存（キャッシュ）し、オフラインでも遊べるようにする
 // ・ネットにつながる時は常に最新のファイルを取りに行き、キャッシュも更新する
-// ・ゲームを大きく更新したら CACHE_VERSION の数字を上げる（古いキャッシュは自動で削除）
-const CACHE_VERSION = 'v1';
-const CACHE_NAME = 'mogura-' + CACHE_VERSION;
+// ・新しいバージョンは、ページ（pwa.js）から「切り替えてOK」と言われるまで待機する
+//   （プレイ中に突然切り替わらないように）
+// ・ゲームを更新して公開する時は、必ず CACHE_VERSION の数字を上げる（古いキャッシュは自動で削除）
+const CACHE_VERSION = 'v8';
+const CACHE_PREFIX = 'mogura-';
+const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 const NETWORK_TIMEOUT_MS = 3000; // 電波が弱い時は3秒でキャッシュに切り替える
 
+// 場所は service-worker.js から見た相対パス（GitHub Pages の /mogura/ でも、そのまま動く）
 const APP_FILES = [
   './',
   './index.html',
   './style.css',
   './script.js',
+  './pwa.js',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',
@@ -19,18 +24,22 @@ const APP_FILES = [
 ];
 
 self.addEventListener('install', (event) => {
+  // ここでは skipWaiting しない。古いバージョンで遊んでいる人がいれば、pwa.js の合図を待つ
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(APP_FILES.map((url) => new Request(url, { cache: 'reload' }))))
-      .then(() => self.skipWaiting())
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((key) => key.startsWith('mogura-') && key !== CACHE_NAME)
+        keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
             .map((key) => caches.delete(key))
       ))
       .then(() => self.clients.claim())
@@ -46,7 +55,8 @@ self.addEventListener('fetch', (event) => {
 async function networkFirst(req) {
   const cache = await caches.open(CACHE_NAME);
   try {
-    const res = await withTimeout(fetch(req), NETWORK_TIMEOUT_MS);
+    // cache: 'no-cache' … ブラウザに残っている古いファイルを使わず、サーバーに最新か確認する
+    const res = await withTimeout(fetch(req, { cache: 'no-cache' }), NETWORK_TIMEOUT_MS);
     if (res && res.ok) cache.put(req, res.clone());
     return res;
   } catch (e) {

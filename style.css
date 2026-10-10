@@ -47,15 +47,17 @@ body {
   position: absolute;
   width: 90px;
   height: 30px;
-  background: #fff;
+  background: var(--cloud, #fff);
   border-radius: 30px;
   opacity: .9;
+  transition: background-color 1.2s, opacity 1.2s;
 }
 .cloud::before, .cloud::after {
   content: "";
   position: absolute;
-  background: #fff;
+  background: var(--cloud, #fff);
   border-radius: 50%;
+  transition: background-color 1.2s;
 }
 .cloud::before { width: 40px; height: 40px; top: -20px; left: 12px; }
 .cloud::after  { width: 50px; height: 50px; top: -28px; left: 36px; }
@@ -64,6 +66,151 @@ body {
 
 @keyframes drift { to { left: 110%; } }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- 得点で変わる天気 ----------
+   body の data-weather：0 雨 / 1 くもり / 2 晴れ間 / 3 晴れ / 4 快晴（虹と花）
+   背景はすべて盤面（.game）の後ろにあるので、モグラは見にくくならない */
+
+/* 空の色（5枚を重ねて、ふわっと入れ替える） */
+.sky-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.sky-layer.s0 { background: linear-gradient(#8d97a3, #b8c0c9); }
+.sky-layer.s1 { background: linear-gradient(#aab6c3, #d6dde4); }
+.sky-layer.s2 { background: linear-gradient(#98cdee, #d8edf6); }
+.sky-layer.s3 { background: linear-gradient(#8fd3ff, #d4f1ff); }
+.sky-layer.s4 { background: linear-gradient(#6cc6ff, #c8efff); }
+[data-weather="0"] .sky-layer.s0,
+[data-weather="1"] .sky-layer.s1,
+[data-weather="2"] .sky-layer.s2,
+[data-weather="3"] .sky-layer.s3,
+[data-weather="4"] .sky-layer.s4 { opacity: 1; }
+
+/* 雲の色と数 */
+.sky { --cloud: #fff; }
+[data-weather="0"] .sky { --cloud: #87909b; }
+[data-weather="1"] .sky { --cloud: #d2d8de; }
+.c3 { top: 22px; left: -100px; animation: drift 48s linear infinite -20s; }
+.c4 { top: 72px; left: -100px; transform: scale(.85); animation: drift 36s linear infinite -8s; }
+.c5 { top: 54px; right: 2px; }              /* 太陽の前の雲（晴れ間で、雲のすき間から太陽が見える） */
+.c3, .c4, .c5 { opacity: 0; }
+[data-weather="0"] .c3, [data-weather="0"] .c4, [data-weather="0"] .c5,
+[data-weather="1"] .c3, [data-weather="1"] .c4, [data-weather="1"] .c5,
+[data-weather="2"] .c5 { opacity: .95; }
+[data-weather="2"] .c3 { opacity: .9; }
+
+/* 太陽：雨・くもりでは隠れ、晴れ間で顔を出し、晴れ・快晴で輝く */
+.sun {
+  opacity: 0;
+  translate: 0 24px;
+  transition: opacity 1.2s, translate 1.2s, box-shadow 1.2s;
+}
+[data-weather="2"] .sun { opacity: 1; translate: 0 6px; }
+[data-weather="3"] .sun,
+[data-weather="4"] .sun { opacity: 1; translate: 0 0; }
+[data-weather="3"] .sun { box-shadow: 0 0 0 10px rgba(255, 224, 102, .4), 0 0 26px 12px rgba(255, 236, 140, .55); }
+[data-weather="4"] .sun { box-shadow: 0 0 0 12px rgba(255, 224, 102, .45), 0 0 36px 18px rgba(255, 240, 150, .7); }
+
+/* 虹（快晴だけ。うすめにして文字やモグラのじゃまをしない） */
+.rainbow {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: min(120vw, 720px);
+  aspect-ratio: 2 / 1;
+  translate: -50% 0;
+  border-radius: 999px 999px 0 0;
+  background: radial-gradient(circle farthest-side at 50% 100%,
+    transparent 0 64%,
+    #b98cf0 64% 67%, #6fa8ff 67% 70%, #6fd98a 70% 73%,
+    #ffe45c 73% 76%, #ffad5c 76% 79%, #ff7b8f 79% 82%,
+    transparent 82%);
+  opacity: 0;
+  scale: .96;
+  transition: opacity 1.5s ease, scale 1.5s ease;
+}
+[data-weather="4"] .rainbow { opacity: .6; scale: 1; }
+
+/* 雨の日は地面も少し暗く */
+.ground-shade {
+  position: fixed;
+  inset: 28% 0 0 0;
+  z-index: 0;
+  pointer-events: none;
+  background: #35485c;
+  opacity: 0;
+  transition: opacity 1.2s;
+}
+[data-weather="0"] .ground-shade { opacity: .22; }
+[data-weather="1"] .ground-shade { opacity: .1; }
+
+/* 雨粒（盤面の後ろを降るので、モグラにはかからない） */
+.rain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 1s, visibility 0s 1s;
+}
+[data-weather="0"] .rain { opacity: 1; visibility: visible; transition: opacity 1s, visibility 0s; }
+.drop {
+  position: absolute;
+  top: -20px;
+  width: 2px;
+  height: 16px;
+  border-radius: 2px;
+  background: linear-gradient(rgba(225, 238, 255, 0), rgba(225, 238, 255, .85));
+  animation: fall linear infinite;
+  will-change: transform;
+}
+@keyframes fall { to { transform: translate(-24px, 110vh); } }
+
+/* 快晴で咲く花 */
+.flowers {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.flower {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  scale: 0;
+  transition: scale .45s cubic-bezier(.3, 1.6, .5, 1);
+  transition-delay: 0s;
+}
+.flower::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 50%, #ffd84a 0 21%, transparent 23%),
+    radial-gradient(circle at 50% 19%, var(--petal) 0 19%, transparent 21%),
+    radial-gradient(circle at 80% 41%, var(--petal) 0 19%, transparent 21%),
+    radial-gradient(circle at 68% 77%, var(--petal) 0 19%, transparent 21%),
+    radial-gradient(circle at 32% 77%, var(--petal) 0 19%, transparent 21%),
+    radial-gradient(circle at 20% 41%, var(--petal) 0 19%, transparent 21%);
+}
+.flower::after {   /* くき */
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  width: 3px;
+  height: 14px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: #3f9a2e;
+  z-index: -1;
+}
+[data-weather="4"] .flower { scale: 1; transition-delay: var(--d); }
 
 /* ---------- レイアウト ---------- */
 .game {
@@ -619,23 +766,24 @@ body {
   color: #fff;
   text-shadow:
     3px 3px 0 #5a0d8f, -3px -3px 0 #5a0d8f, 3px -3px 0 #5a0d8f, -3px 3px 0 #5a0d8f,
+    0 3px 0 #5a0d8f, 0 -3px 0 #5a0d8f, 3px 0 0 #5a0d8f, -3px 0 0 #5a0d8f,
     0 0 12px #ff2a55, 0 0 24px #b026ff;
-  animation: popJackpot 1.3s ease-out forwards;
+  animation: popJackpot .4s ease-out forwards;   /* JS の JACKPOT_MS と同じ長さ */
   z-index: 8;
 }
-.pop.jackpot .pts { font-size: clamp(30px, 9vw, 50px); }
+.pop.jackpot .pts { font-size: clamp(32px, 9.5vw, 52px); }
 .pop.jackpot .big {
-  font-size: clamp(22px, 6.5vw, 36px);
+  font-size: clamp(23px, 6.8vw, 38px);
   color: #ffe14d;
-  animation: jackpotBlink .16s steps(1) 6;
+  animation: jackpotBlink .08s steps(1) 5;
 }
+/* 一瞬で大きく出て、その場で読ませてから、さっと消える */
 @keyframes popJackpot {
-  0%   { opacity: 0; transform: translate(var(--px), 24px) scale(.3) rotate(-8deg); }
-  14%  { opacity: 1; transform: translate(var(--px), -6px) scale(1.35) rotate(4deg); }
-  26%  { transform: translate(var(--px), 0) scale(1) rotate(-2deg); }
-  36%  { transform: translate(var(--px), 0) scale(1.12) rotate(0deg); }
-  75%  { opacity: 1; transform: translate(var(--px), -14px) scale(1.05); }
-  100% { opacity: 0; transform: translate(var(--px), -46px) scale(1); }
+  0%   { opacity: 0; transform: translate(var(--px), 10px) scale(.4) rotate(-6deg); }
+  14%  { opacity: 1; transform: translate(var(--px), -3px) scale(1.25) rotate(3deg); }
+  26%  { transform: translate(var(--px), 0) scale(1.05) rotate(0deg); }
+  80%  { opacity: 1; transform: translate(var(--px), -4px) scale(1.05); }
+  100% { opacity: 0; transform: translate(var(--px), -12px) scale(1); }
 }
 @keyframes jackpotBlink { 50% { color: #ff4d6d; } }
 
@@ -653,14 +801,14 @@ body {
   width: 130%;
   margin: -65% 0 0 -65%;
   background: radial-gradient(circle, #fff 0 10%, #ffe14d 20%, #ff3b3b 38%, rgba(160, 40, 220, .85) 55%, transparent 70%);
-  animation: boomCore .55s ease-out forwards;
+  animation: boomCore .3s ease-out forwards;
 }
 .boom-ring {
   width: 100%;
   margin: -50% 0 0 -50%;
   border: 6px solid #ff3b6b;
   box-shadow: 0 0 12px #b026ff, inset 0 0 12px #b026ff;
-  animation: ringOut .6s ease-out forwards;
+  animation: ringOut .35s ease-out forwards;
 }
 @keyframes boomCore {
   0%   { opacity: 1; transform: scale(.15); }
@@ -685,7 +833,7 @@ body {
   clip-path: polygon(45% 0, 80% 0, 60% 36%, 88% 36%, 40% 100%, 50% 54%, 20% 54%);
   pointer-events: none;
   z-index: 4;
-  animation: bolt .6s ease-out forwards;
+  animation: bolt .36s ease-out forwards;
 }
 @keyframes bolt {
   0%   { opacity: 0; transform: rotate(var(--rot)) scaleY(.2); }
@@ -704,7 +852,7 @@ body {
   border-radius: 50%;
   background: var(--c);
   box-shadow: 0 0 6px 2px var(--c);
-  animation-duration: .7s;
+  animation-duration: .37s;
   z-index: 5;
 }
 
@@ -715,12 +863,12 @@ body {
   z-index: 50;
   pointer-events: none;
   background: radial-gradient(circle at 50% 55%, rgba(255, 60, 90, .35), rgba(140, 30, 200, .22) 60%, transparent 100%);
-  animation: flash .35s ease-out forwards;
+  animation: flash .28s ease-out forwards;
 }
 @keyframes flash { from { opacity: 1; } to { opacity: 0; } }
 
 /* 画面を一瞬だけ軽く揺らす */
-.game.shake { animation: shake .35s ease-out; }
+.game.shake { animation: shake .28s ease-out; }
 @keyframes shake {
   0%, 100% { transform: translate(0, 0); }
   15% { transform: translate(-5px, 3px); }
@@ -830,6 +978,13 @@ body {
   animation: pulse .5s ease-in-out infinite alternate;
 }
 .newRecord.hidden { display: none; }
+/* 新しいバージョンがある時だけ、結果画面に出る案内 */
+.updateNote {
+  font-size: 13px;
+  font-weight: bold;
+  color: #6b8f3a;
+  margin-bottom: 12px;
+}
 .bestText {
   margin-bottom: 20px;
   font-weight: bold;

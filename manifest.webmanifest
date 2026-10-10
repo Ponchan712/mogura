@@ -3,6 +3,7 @@
   "short_name": "もぐらたたき",
   "description": "モグラをたたいて点数をかせぐ、45秒のもぐらたたきゲーム",
   "lang": "ja",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

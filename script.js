@@ -8,6 +8,9 @@
   const BEST_KEY = 'moguraBestScore';
   const HIDE_MS = 160;        // 引っ込むアニメーション（.14s）が終わるまでの時間
   const HIT_HOLD_MS = 220;    // たたかれた顔を見せておく時間
+  // 大当たり演出の長さ（CSS の popJackpot と同じ長さ）。
+  // たたいてから次のもぐらが出るまで最短でも HIT_HOLD_MS + HIDE_MS + 間隔（約0.43秒）あるので、それより前に消えきる長さにする
+  const JACKPOT_MS = 400;
 
   const game = document.querySelector('.game');
   const board = document.getElementById('board');
@@ -29,7 +32,7 @@
   let spawnTimer = null;
   let clockTimer = null;
   let resultTimer = null;
-  let currentMole = null;     // いま出ているもぐら（常に1匹まで）
+  const activeMoles = new Set(); // いま出ているもぐら（1匹か2匹）
   const holes = [];
 
   bestEl.textContent = best;
@@ -45,6 +48,47 @@
     board.appendChild(hole);
     holes.push(state);
   }
+
+  // ---------- 得点で変わる天気の背景 ----------
+  // 0〜99点：雨 / 100〜199点：くもり / 200〜299点：晴れ間 / 300〜399点：晴れ / 400点以上：快晴（虹と花）
+  // 見た目の切り替えは CSS（body の data-weather）がふわっと行う
+  let weather = 0;
+  function updateWeather() {
+    const next = Math.min(4, Math.floor(score / 100));
+    if (next === weather) return;
+    weather = next;
+    document.body.dataset.weather = String(weather);
+  }
+
+  // 雨粒（盤面の後ろを降る）
+  const rainEl = document.getElementById('rain');
+  for (let i = 0; i < 40; i++) {
+    const d = document.createElement('i');
+    d.className = 'drop';
+    d.style.left = (Math.random() * 110).toFixed(1) + '%';
+    const dur = 0.7 + Math.random() * 0.5;
+    d.style.animationDuration = dur.toFixed(2) + 's';
+    d.style.animationDelay = (-Math.random() * dur).toFixed(2) + 's';
+    d.style.opacity = (0.4 + Math.random() * 0.5).toFixed(2);
+    rainEl.appendChild(d);
+  }
+
+  // 快晴で咲く花（画面の下のほう。盤面にはかからない）
+  const flowersEl = document.getElementById('flowers');
+  const FLOWERS = [
+    [5, 3], [15, 9], [26, 2], [37, 7], [49, 3], [61, 8], [72, 2], [83, 7], [94, 3],
+    [4, 15], [96, 14],
+  ];
+  const PETALS = ['#ff8fb1', '#ffffff', '#ffb3d1', '#c9a7ff', '#ff9e7a'];
+  FLOWERS.forEach(([x, y], i) => {
+    const f = document.createElement('i');
+    f.className = 'flower';
+    f.style.left = `calc(${x}% - 12px)`;
+    f.style.bottom = `calc(${y}% + 6px + env(safe-area-inset-bottom))`;
+    f.style.setProperty('--petal', PETALS[i % PETALS.length]);
+    f.style.setProperty('--d', (i * 0.06).toFixed(2) + 's');
+    flowersEl.appendChild(f);
+  });
 
   // ---------- 最高得点の保存 ----------
   function loadBest() {
@@ -66,7 +110,7 @@
   let noiseBuf = null;        // 爆発音・「しゅ〜」用のノイズ
   let unlocked = false;
   let out = null;             // いま作っている効果音の出力先（voice() の中だけ使う）
-  let hitVoice = null;        // 最後にたたいた時の効果音
+  const hitVoices = {};       // 種類ごとの、最後に鳴らした長い効果音
 
   function getAudio() {
     if (!audioCtx) {
@@ -111,25 +155,26 @@
   });
 
   // 効果音ひとつ分をまとめて鳴らす。
-  // たたいた時の音（exclusive）は、前の音が残っていたらすぐ小さくして消し、音が重なって大きくなりすぎないようにする
-  function voice(fn, exclusive = false, lengthSec = 2) {
+  // 長い音（exclusive に名前を付けたもの）は、同じ音がまだ鳴っていたらすぐ小さくして消し、
+  // 音が重なって大きくなりすぎないようにする。違う種類の音どうし（2匹を続けてたたいた時など）は止めない
+  function voice(fn, exclusive = null, lengthSec = 2) {
     const ctx = getAudio();
     if (!ctx) return;
     const v = ctx.createGain();
     v.connect(master);
     if (exclusive) {
-      if (hitVoice) {
-        const old = hitVoice;
+      const old = hitVoices[exclusive];
+      if (old) {
         old.gain.setTargetAtTime(0, ctx.currentTime, 0.02);
         setTimeout(() => old.disconnect(), 200);
       }
-      hitVoice = v;
+      hitVoices[exclusive] = v;
     }
     out = v;
     try { fn(); } finally { out = null; }
     setTimeout(() => {
       v.disconnect();
-      if (hitVoice === v) hitVoice = null;
+      if (exclusive && hitVoices[exclusive] === v) hitVoices[exclusive] = null;
     }, lengthSec * 1000 + 300);
   }
 
@@ -225,11 +270,6 @@
       });
       noise(0.7, 0.6, 0.05, 'highpass', 7000, 9000, 0.02);
     },
-    angelAppear() {
-      // 天使モグラが出た時：小さく「ふわ〜ん」
-      softTone(1568, 0, 0.45, 0.04);
-      softTone(2093, 0.08, 0.5, 0.03);
-    },
     angelHit() {
       // 天使モグラ：かわいくて少し悲しい「しゅ〜ん……」
       noise(0, 0.5, 0.08, 'bandpass', 3000, 600, 0.06);
@@ -253,15 +293,14 @@
   };
 
   // 実際に鳴らす時はこちらを使う（数字は音の長さの目安・秒）
-  // 長い大当たり音と悲しい音は、次の長い音が鳴ったら前の音を止めて、重なりすぎないようにする
+  // 長い大当たり音と悲しい音は、同じ音が続けて鳴ったら前の音を止めて、重なりすぎないようにする
   const sound = {
-    hit:         () => voice(sfx.hit, false, 0.4),
-    jackpot:     () => voice(sfx.jackpot, true, 1.6),
-    angelAppear: () => voice(sfx.angelAppear, false, 0.6),
-    angelHit:    () => voice(sfx.angelHit, true, 1.6),
-    start:       () => voice(sfx.start, false, 0.7),
-    end:         () => voice(sfx.end, false, 0.7),
-    record:      () => voice(sfx.record, false, 1.0),
+    hit:         () => voice(sfx.hit, null, 0.4),
+    jackpot:     () => voice(sfx.jackpot, 'jackpot', 1.6),
+    angelHit:    () => voice(sfx.angelHit, 'angelHit', 1.6),
+    start:       () => voice(sfx.start, null, 0.7),
+    end:         () => voice(sfx.end, null, 0.7),
+    record:      () => voice(sfx.record, null, 1.0),
   };
 
   // ---------- ゲームの進行 ----------
@@ -269,14 +308,24 @@
     return (performance.now() - startTime) / 1000;
   }
 
-  // 経過時間ごとのスピードの目安（ms）。間の時間は直線的に変化させる
+  // 経過時間ごとのスピードの目安（ms）。間の時間は直線的に変化させ、だんだん速くする
   //   stay: 顔を出している時間 / gap: 引っ込みきってから次が出るまでの間隔
+  //   0秒：遊びやすい速さ → 25秒（残り20秒）からテンポアップ → 35秒（残り10秒）からかなり速く
   const SPEED_TABLE = [
-    { t: 0,  stay: 1000, gap: 250 },
-    { t: 15, stay: 850,  gap: 200 },
-    { t: 30, stay: 700,  gap: 150 },
-    { t: 45, stay: 550,  gap: 100 },
+    { t: 0,  stay: 800, gap: 140 },
+    { t: 15, stay: 680, gap: 110 },
+    { t: 25, stay: 590, gap: 90 },
+    { t: 35, stay: 510, gap: 65 },
+    { t: 45, stay: 450, gap: 50 },
   ];
+  const DOUBLE_EXTRA_STAY = 150; // 2匹同時の時は、2回たたけるよう少し長めに顔を出す
+
+  // 2匹同時に出る確率（経過秒数ごと）。それ以外は1匹だけ
+  function doubleChance(t) {
+    if (t < 25) return 0;
+    if (t < 35) return 0.3;  // 25〜35秒：ときどき
+    return 0.6;              // 35〜45秒：多め
+  }
 
   function currentSpeed() {
     const t = Math.min(Math.max(elapsed(), 0), GAME_TIME);
@@ -303,7 +352,7 @@
     spawnTimer = null;
     clockTimer = null;
     resultTimer = null;
-    currentMole = null;       // 先に外しておき、hideMole から次の出現が予約されないようにする
+    activeMoles.clear();      // 先に空にしておき、hideMole から次の出現が予約されないようにする
     holes.forEach(hideMole);
   }
 
@@ -313,6 +362,7 @@
     resetTimers();
     score = 0;
     scoreEl.textContent = score;
+    updateWeather(); // 再スタートで雨に戻る
     timeEl.textContent = GAME_TIME;
     timeEl.parentElement.classList.remove('hurry');
     result.classList.add('hidden');
@@ -333,47 +383,68 @@
     if (left <= 0) endGame();
   }
 
-  // もぐらは必ず1匹ずつ。前のもぐらが引っ込みきってから次を出す
+  // 1回に出すのは1匹か2匹。出たもぐらが全部引っ込みきってから、次を出す
   function spawnMole() {
     spawnTimer = null;
-    if (!playing || currentMole) return;
-    showMole();
+    if (!playing || activeMoles.size > 0) return;
+    const t = elapsed();
+    const count = Math.random() < doubleChance(t) ? 2 : 1;
+
+    // 種類：2匹の時は必ず別々の種類にする
+    const types = [pickType([])];
+    if (count === 2) types.push(pickType(types));
+
+    // 穴：2匹の時は必ず別々の穴にする
+    const free = holes.slice();
+    const stay = currentSpeed().stay + (count === 2 ? DOUBLE_EXTRA_STAY : 0);
+    types.forEach((type) => {
+      const h = free.splice(Math.floor(Math.random() * free.length), 1)[0];
+      showMole(h, type, stay);
+    });
+  }
+
+  // 出現確率（普通40％・悪30％・天使30％）で種類を選ぶ。exclude にある種類は選ばない
+  function pickType(exclude) {
+    const table = [
+      { type: 'normal', rate: 1 - ANGEL_RATE - BAD_RATE },
+      { type: 'bad', rate: BAD_RATE },
+      { type: 'angel', rate: ANGEL_RATE },
+    ].filter((x) => !exclude.includes(x.type));
+    const total = table.reduce((sum, x) => sum + x.rate, 0);
+    let r = Math.random() * total;
+    for (const x of table) {
+      if ((r -= x.rate) < 0) return x.type;
+    }
+    return table[table.length - 1].type;
   }
 
   function scheduleNext() {
     if (!playing) return;
     clearTimeout(spawnTimer); // 予約は常に1つだけ
-    // 引っ込むアニメーションが終わってから、間隔をあけて次を出す
+    // 引っ込むアニメーションが終わってから、間隔をあけて次を出す（どの種類のもぐらでも同じ間隔）
     spawnTimer = setTimeout(spawnMole, HIDE_MS + currentSpeed().gap);
   }
 
-  function showMole() {
-    const h = holes[Math.floor(Math.random() * holes.length)];
-    currentMole = h;
+  function showMole(h, type, stay) {
+    activeMoles.add(h);
     h.up = true;
-    const r = Math.random();
-    h.type = r < ANGEL_RATE ? 'angel'
-           : r < ANGEL_RATE + BAD_RATE ? 'bad'
-           : 'normal';
+    h.type = type;
     h.el.classList.remove('hit');
     h.el.classList.toggle('angel', h.type === 'angel');
     h.el.classList.toggle('bad', h.type === 'bad');
     h.el.classList.add('up');
-    if (h.type === 'angel') sound.angelAppear();
+    // 出てくる時はどの種類も音を鳴らさない（音で天使モグラだとわからないように）
 
-    // 顔を出している時間：1.0秒 → 0.55秒（見逃しても減点なし）
+    // 顔を出している時間：0.8秒 → 0.45秒（見逃しても減点なし）
     clearTimeout(h.hideTimer);
-    h.hideTimer = setTimeout(() => hideMole(h), currentSpeed().stay);
+    h.hideTimer = setTimeout(() => hideMole(h), stay);
   }
 
   function hideMole(h) {
     clearTimeout(h.hideTimer);
     h.up = false;
     h.el.classList.remove('up', 'hit');
-    if (h === currentMole) {
-      currentMole = null;
-      scheduleNext();
-    }
+    if (activeMoles.delete(h) && activeMoles.size === 0) scheduleNext();
   }
 
   function whack(h) {
@@ -397,6 +468,7 @@
       if (navigator.vibrate) navigator.vibrate(20);
     }
     scoreEl.textContent = score;
+    updateWeather(); // 得点の段階が変わった時だけ天気を切り替える（下がった時は前の天気に戻る）
     // 「> <」の顔を少しだけ見せて、すぐ引っ込めて次へ（演出の文字や星は穴に残って続く）
     h.hideTimer = setTimeout(() => hideMole(h), HIT_HOLD_MS);
   }
@@ -413,7 +485,7 @@
     const holeEl = h.el;
     holeEl.classList.add('boom');
     clearTimeout(h.boomTimer);
-    h.boomTimer = setTimeout(() => holeEl.classList.remove('boom'), 1300);
+    h.boomTimer = setTimeout(() => holeEl.classList.remove('boom'), JACKPOT_MS);
 
     // 「＋20点！ 大当たり！」（左右の端の穴では画面からはみ出さないよう内側へ寄せる）
     const pop = document.createElement('div');
@@ -427,15 +499,15 @@
     big.className = 'big';
     big.textContent = '大当たり！';
     pop.append(pts, big);
-    addTemp(holeEl, pop, 1300);
+    addTemp(holeEl, pop, JACKPOT_MS);
 
     // 爆発の光と衝撃波
     const core = document.createElement('div');
     core.className = 'boom-core';
-    addTemp(holeEl, core, 600);
+    addTemp(holeEl, core, 320);
     const ring = document.createElement('div');
     ring.className = 'boom-ring';
-    addTemp(holeEl, ring, 650);
+    addTemp(holeEl, ring, 370);
 
     // 赤と紫の稲妻
     const boltCount = 6;
@@ -444,8 +516,8 @@
       b.className = 'bolt';
       b.style.setProperty('--rot', (360 / boltCount) * i + Math.random() * 20 - 10 + 'deg');
       b.style.setProperty('--c', i % 2 ? '#b026ff' : '#ff2a3d');
-      b.style.animationDelay = Math.random() * 0.08 + 's';
-      addTemp(holeEl, b, 750);
+      b.style.animationDelay = Math.random() * 0.03 + 's';
+      addTemp(holeEl, b, 400);
     }
 
     // 飛び散る火花
@@ -460,19 +532,19 @@
       s.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
       s.style.setProperty('--size', 5 + Math.random() * 6 + 'px');
       s.style.setProperty('--c', colors[i % colors.length]);
-      addTemp(holeEl, s, 750);
+      addTemp(holeEl, s, 390);
     }
 
     // 画面を一瞬赤紫に光らせて、軽く揺らす
     const flash = document.createElement('div');
     flash.className = 'flash';
     document.body.appendChild(flash);
-    setTimeout(() => flash.remove(), 400);
+    setTimeout(() => flash.remove(), 300);
 
     game.classList.remove('shake');
     void game.offsetWidth; // アニメーションを最初からやり直す
     game.classList.add('shake');
-    setTimeout(() => game.classList.remove('shake'), 400);
+    setTimeout(() => game.classList.remove('shake'), 300);
   }
 
   // 天使モグラ：「−20点！」と、ひらひら落ちる羽
@@ -537,9 +609,13 @@
       resultTimer = null;
       result.classList.remove('hidden');
       startBtn.disabled = false;
+      document.dispatchEvent(new Event('mogura:result')); // 結果画面を出したことを更新機能（pwa.js）に知らせる
     }, 500);
   }
 
   startBtn.addEventListener('click', startGame);
   retryBtn.addEventListener('click', startGame);
+
+  // 更新機能（pwa.js）が「いまプレイ中か」を確かめるための窓口
+  window.MoguraGame = { isPlaying: () => playing };
 })();
