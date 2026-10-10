@@ -24,6 +24,11 @@
   const finalBestEl = document.getElementById('finalBest');
   const newRecordEl = document.getElementById('newRecord');
   const template = document.getElementById('holeTemplate');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const confirmEl = document.getElementById('confirm');
+  const confirmYes = document.getElementById('confirmYes');
+  const confirmNo = document.getElementById('confirmNo');
 
   let score = 0;
   let best = loadBest();
@@ -32,6 +37,10 @@
   let spawnTimer = null;
   let clockTimer = null;
   let resultTimer = null;
+  let spawnDue = 0;           // 次のもぐらを出す予定の時刻
+  let paused = false;         // 一時停止中か
+  let pausedAt = 0;           // 一時停止した時刻
+  let spawnLeft = null;       // 一時停止した時の、次のもぐらまでの残り時間
   const activeMoles = new Set(); // いま出ているもぐら（1匹か2匹）
   const holes = [];
 
@@ -63,7 +72,7 @@
   // ---------- 穴を9個つくる ----------
   for (let i = 0; i < 9; i++) {
     const hole = template.content.firstElementChild.cloneNode(true);
-    const state = { el: hole, index: i, up: false, type: 'normal', hideTimer: null, boomTimer: null };
+    const state = { el: hole, index: i, up: false, type: 'normal', hideTimer: null, hideDue: 0, hideLeft: null, boomTimer: null };
     hole.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       whack(state);
@@ -420,6 +429,19 @@
     return { stay: last.stay, gap: last.gap };
   }
 
+  // 次のもぐらを出す予約と、もぐらを引っ込める予約。
+  // 一時停止できるよう、いつ動く予定かを覚えておく（再開した時に、残りの時間から続ける）
+  function setSpawn(ms) {
+    clearTimeout(spawnTimer); // 予約は常に1つだけ
+    spawnDue = performance.now() + ms;
+    spawnTimer = setTimeout(spawnMole, ms);
+  }
+  function setHide(h, ms) {
+    clearTimeout(h.hideTimer);
+    h.hideDue = performance.now() + ms;
+    h.hideTimer = setTimeout(() => { h.hideTimer = null; hideMole(h); }, ms);
+  }
+
   // すべてのタイマーを止めて、もぐらを全部引っ込める（タイマーの重複防止）
   function resetTimers() {
     clearTimeout(spawnTimer);
@@ -428,8 +450,64 @@
     spawnTimer = null;
     clockTimer = null;
     resultTimer = null;
+    paused = false;
+    spawnLeft = null;
+    holes.forEach((h) => { h.hideLeft = null; });
+    showPaused(false);
     activeMoles.clear();      // 先に空にしておき、hideMole から次の出現が予約されないようにする
     holes.forEach(hideMole);
+  }
+
+  // ---------- 一時停止と再開 ----------
+  // 止めている間は、残り時間・もぐら・次のもぐらの予約をすべて止める（たたいても得点は変わらない）。
+  // 再開したら、止めた時の残り時間から続けるので、ゲームの速さは止めなかった時と同じになる
+  function pauseGame() {
+    if (!playing || paused) return;
+    paused = true;
+    pausedAt = performance.now();
+    clearInterval(clockTimer);
+    clockTimer = null;
+    spawnLeft = spawnTimer ? Math.max(0, spawnDue - pausedAt) : null;
+    clearTimeout(spawnTimer);
+    spawnTimer = null;
+    holes.forEach((h) => {
+      h.hideLeft = h.hideTimer ? Math.max(0, h.hideDue - pausedAt) : null;
+      clearTimeout(h.hideTimer);
+      h.hideTimer = null;
+    });
+    showPaused(true);
+  }
+
+  function resumeGame() {
+    if (!playing || !paused) return;
+    paused = false;
+    startTime += performance.now() - pausedAt; // 止めていた時間は、経過時間に数えない
+    clockTimer = setInterval(updateClock, 100);
+    if (spawnLeft !== null) setSpawn(spawnLeft);
+    spawnLeft = null;
+    holes.forEach((h) => {
+      if (h.hideLeft !== null) setHide(h, h.hideLeft);
+      h.hideLeft = null;
+    });
+    showPaused(false);
+  }
+
+  function showPaused(on) {
+    game.classList.toggle('paused', on);
+    pauseBtn.textContent = on ? '▶ 再開' : '⏸ 一時停止';
+  }
+
+  // ---------- やり直し ----------
+  // 確認している間はゲームを止めておく。「いいえ」なら元の状態（遊んでいた／止めていた）に戻す
+  let pausedBeforeConfirm = false;
+  function askRestart() {
+    if (!playing) return;
+    pausedBeforeConfirm = paused;
+    pauseGame();
+    confirmEl.classList.remove('hidden');
+  }
+  function closeConfirm() {
+    confirmEl.classList.add('hidden');
   }
 
   function startGame() {
@@ -442,17 +520,20 @@
     timeEl.textContent = GAME_TIME;
     timeEl.parentElement.classList.remove('hurry');
     result.classList.add('hidden');
+    closeConfirm();
     startBtn.disabled = true;
 
     playing = true;
+    game.classList.add('playing'); // 「一時停止」「やり直し」ボタンを出す
     startTime = performance.now();
     sound.start();
 
     clockTimer = setInterval(updateClock, 100);
-    spawnTimer = setTimeout(spawnMole, 600);
+    setSpawn(600);
   }
 
   function updateClock() {
+    if (paused) return;
     const left = Math.max(0, GAME_TIME - elapsed());
     timeEl.textContent = Math.ceil(left);
     if (left <= 5) timeEl.parentElement.classList.add('hurry');
@@ -496,9 +577,8 @@
 
   function scheduleNext() {
     if (!playing) return;
-    clearTimeout(spawnTimer); // 予約は常に1つだけ
     // 引っ込むアニメーションが終わってから、間隔をあけて次を出す（どの種類のもぐらでも同じ間隔）
-    spawnTimer = setTimeout(spawnMole, HIDE_MS + currentSpeed().gap);
+    setSpawn(HIDE_MS + currentSpeed().gap);
   }
 
   function showMole(h, type, stay) {
@@ -512,19 +592,19 @@
     // 出てくる時はどの種類も音を鳴らさない（音で天使モグラだとわからないように）
 
     // 顔を出している時間：0.8秒 → 0.45秒（見逃しても減点なし）
-    clearTimeout(h.hideTimer);
-    h.hideTimer = setTimeout(() => hideMole(h), stay);
+    setHide(h, stay);
   }
 
   function hideMole(h) {
     clearTimeout(h.hideTimer);
+    h.hideTimer = null;
     h.up = false;
     h.el.classList.remove('up', 'hit');
     if (activeMoles.delete(h) && activeMoles.size === 0) scheduleNext();
   }
 
   function whack(h) {
-    if (!playing || !h.up || h.el.classList.contains('hit')) return;
+    if (!playing || paused || !h.up || h.el.classList.contains('hit')) return; // 一時停止中は得点が変わらない
     clearTimeout(h.hideTimer);
     h.el.classList.add('hit');
     if (h.type === 'bad') {
@@ -546,7 +626,7 @@
     scoreEl.textContent = score;
     updateWeather(); // 得点の段階が変わった時だけ天気を切り替える（下がった時は前の天気に戻る）
     // 「> <」の顔を少しだけ見せて、すぐ引っ込めて次へ（演出の文字や星は穴に残って続く）
-    h.hideTimer = setTimeout(() => hideMole(h), HIT_HOLD_MS);
+    setHide(h, HIT_HOLD_MS);
   }
 
   // 要素を穴に追加し、ms 後に消す
@@ -664,6 +744,7 @@
   function endGame() {
     if (!playing) return;
     playing = false;
+    game.classList.remove('playing');
     resetTimers();
     timeEl.textContent = 0;
     timeEl.parentElement.classList.remove('hurry');
@@ -691,7 +772,17 @@
 
   startBtn.addEventListener('click', startGame);
   retryBtn.addEventListener('click', startGame);
+  pauseBtn.addEventListener('click', () => (paused ? resumeGame() : pauseGame()));
+  restartBtn.addEventListener('click', askRestart);
+  confirmYes.addEventListener('click', () => {
+    closeConfirm();
+    startGame(); // 得点0点・残り45秒から（最高記録はそのまま）
+  });
+  confirmNo.addEventListener('click', () => {
+    closeConfirm();
+    if (!pausedBeforeConfirm) resumeGame(); // 遊んでいた時は続きから。止めていた時は止めたまま
+  });
 
-  // 更新機能（pwa.js）が「いまプレイ中か」を確かめるための窓口
-  window.MoguraGame = { isPlaying: () => playing };
+  // 更新機能（pwa.js）が「いまプレイ中か」を確かめるための窓口（一時停止中も「プレイ中」として扱い、更新しない）
+  window.MoguraGame = { isPlaying: () => playing, isPaused: () => paused };
 })();

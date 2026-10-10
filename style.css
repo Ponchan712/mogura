@@ -1116,6 +1116,76 @@ body::before {
   visibility: hidden;
 }
 
+/* 「スタート！」と、遊んでいる時の「一時停止」「やり直し」は同じ場所に重ねて置く（画面の配置が変わらない） */
+.actions {
+  display: grid;
+  justify-items: center;
+  align-items: center;
+  flex-shrink: 0;
+  width: 100%;
+}
+.actions > * { grid-area: 1 / 1; }
+.play-buttons {
+  display: flex;
+  justify-content: center;
+  gap: clamp(8px, 3vw, 14px);
+  visibility: hidden;
+}
+.game.playing .play-buttons { visibility: visible; }
+/* 小さめのボタン（指で押しやすいよう、高さは 44px 以上） */
+.btn-sub {
+  min-height: 44px;
+  font-size: clamp(15px, min(4.4vw, 2.4vh), 20px);
+  font-size: clamp(15px, min(4.4vw, 2.4dvh), 20px);
+  padding: 8px clamp(14px, 4.5vw, 26px);
+  padding: clamp(8px, 1.3dvh, 12px) clamp(14px, 4.5vw, 26px);
+  white-space: nowrap;
+  box-shadow: 0 4px 0 #e0607f;
+}
+.btn-sub:active { transform: translateY(3px); box-shadow: 0 1px 0 #e0607f; }
+.btn-gray { background: #b49a80; box-shadow: 0 4px 0 #8f765e; }
+.btn-gray:active { box-shadow: 0 1px 0 #8f765e; }
+
+/* 一時停止中：盤面を少し暗くして「一時停止中」と出し、モグラや演出の動きも止める */
+.board-area { position: relative; }
+.pause-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: rgba(255, 250, 240, .95);
+  border: 3px solid #e0b07a;
+  color: #5a3a1e;
+  font-weight: bold;
+  font-size: clamp(18px, 5vw, 24px);
+  white-space: nowrap;
+  pointer-events: none;
+  display: none;
+  z-index: 6;
+}
+.game.paused .pause-label { display: block; }
+.game.paused .board { filter: brightness(.8) saturate(.8); }
+.game.paused .board *,
+.game.paused .board *::before,
+.game.paused .board *::after,
+.game.paused .badge { animation-play-state: paused !important; }
+
+/* やり直しの確認 */
+.confirmText {
+  font-size: clamp(19px, 5.4vw, 24px);
+  font-weight: bold;
+  color: #b7774a;
+  margin: 6px 0 22px;
+}
+.confirm-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+}
+.confirm-buttons .btn { min-width: 108px; }
+
 /* ---------- 結果画面 ---------- */
 .overlay {
   position: fixed;

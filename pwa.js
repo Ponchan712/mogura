@@ -1,5 +1,6 @@
 // もぐらたたき：オフライン対応と自動更新
-// ・起動した時と、ホーム画面から開き直した時に、新しいバージョンが公開されていないか確認する
+// ・起動した時、ホーム画面から開き直した時、ゲームが終わった時、ネットにつながった時と、
+//   開いたままの時も5分ごとに、新しいバージョンが公開されていないか確認する（プレイ中は確認しない）
 // ・新しいバージョンが見つかったら、プレイ中でない安全なタイミングで最新版に切り替える
 //     スタート画面にいる時 …… すぐに切り替える
 //     プレイ中 ……………………… 切り替えない（ゲームが終わるまで待つ）
@@ -7,7 +8,8 @@
 (() => {
   if (!('serviceWorker' in navigator) || location.protocol === 'file:') return; // https / localhost の時だけ動く
 
-  const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 開いたままの時も30分ごとに確認
+  const CHECK_INTERVAL_MS = 5 * 60 * 1000;  // 開いたままの時も5分ごとに確認
+  const MIN_GAP_MS = 10 * 1000;             // 続けて何度も確認しないよう、10秒はあける
   const resultEl = document.getElementById('result');
   const startBtn = document.getElementById('startBtn');
   const retryBtn = document.getElementById('retryBtn');
@@ -55,7 +57,8 @@
   }
 
   function checkForUpdate() {
-    if (!registration || switching) return;
+    if (!registration || switching || waitingWorker || isPlaying()) return;
+    if (Date.now() - lastCheck < MIN_GAP_MS) return;
     lastCheck = Date.now();
     registration.update().catch(() => { /* オフラインの時は確認しない */ });
   }
@@ -70,9 +73,13 @@
     }, true);
   });
 
+  // ゲームが終わった時：待っているバージョンがあれば案内し、なければ新しいバージョンがないか確認する
+  // （見つかったら結果画面に案内が出て、「もう一度あそぶ」で切り替わる）
   document.addEventListener('mogura:result', () => {
     if (waitingWorker) showNote();
+    else { lastCheck = 0; checkForUpdate(); }
   });
+  window.addEventListener('online', checkForUpdate); // 電波が戻った時
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {

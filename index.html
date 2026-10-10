@@ -58,10 +58,28 @@
     <!-- 盤面は、題名・得点・ボタンを置いた残りの場所いっぱいの大きさになる -->
     <div class="board-area">
       <div class="board" id="board"></div>
+      <div class="pause-label" aria-hidden="true">⏸ 一時停止中</div>
     </div>
 
-    <button class="btn" id="startBtn">スタート！</button>
+    <!-- 遊んでいない時は「スタート！」、遊んでいる時は「一時停止」「やり直し」を同じ場所に出す -->
+    <div class="actions">
+      <button class="btn" id="startBtn">スタート！</button>
+      <div class="play-buttons">
+        <button class="btn btn-sub" id="pauseBtn" type="button">⏸ 一時停止</button>
+        <button class="btn btn-sub btn-gray" id="restartBtn" type="button">↺ やり直し</button>
+      </div>
+    </div>
   </main>
+
+  <div class="overlay hidden" id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirmText">
+    <div class="card">
+      <p class="confirmText" id="confirmText">最初からやり直しますか？</p>
+      <div class="confirm-buttons">
+        <button class="btn btn-sub" id="confirmYes" type="button">はい</button>
+        <button class="btn btn-sub btn-gray" id="confirmNo" type="button">いいえ</button>
+      </div>
+    </div>
+  </div>
 
   <div class="overlay hidden" id="result">
     <div class="card">
