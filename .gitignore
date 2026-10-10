@@ -1,0 +1,5 @@
+# GitHub に公開しないファイル（パソコンでの確認・Claude Code 用）
+CLAUDE.md
+start-local-server.bat
+tools/
+.claude/

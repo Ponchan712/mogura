@@ -50,14 +50,24 @@
   }
 
   // ---------- 得点で変わる天気の背景 ----------
-  // 0〜99点：雨 / 100〜199点：くもり / 200〜299点：晴れ間 / 300〜399点：晴れ / 400点以上：快晴（虹と花）
+  // 0〜99点：雨 / 100〜199点：くもり / 200〜299点：晴れ間 / 300〜399点：晴れ / 400〜499点：快晴（虹と花）
+  // 500点以上：ごほうびの晴れ（大きな虹2本・花畑・キラキラの太陽）
   // 見た目の切り替えは CSS（body の data-weather）がふわっと行う
+  const SPECIAL_WEATHER = 5;
+  const sunburstEl = document.querySelector('.sunburst');
   let weather = 0;
   function updateWeather() {
-    const next = Math.min(4, Math.floor(score / 100));
+    const next = Math.min(SPECIAL_WEATHER, Math.floor(score / 100));
     if (next === weather) return;
+    const prev = weather;
     weather = next;
     document.body.dataset.weather = String(weather);
+    // 500点に届いた瞬間だけ、背景をふわっと明るく光らせる
+    sunburstEl.classList.remove('on');
+    if (weather === SPECIAL_WEATHER && prev < SPECIAL_WEATHER) {
+      void sunburstEl.offsetWidth; // アニメーションを最初からやり直す
+      sunburstEl.classList.add('on');
+    }
   }
 
   // 雨粒（盤面の後ろを降る）
@@ -88,6 +98,49 @@
     f.style.setProperty('--petal', PETALS[i % PETALS.length]);
     f.style.setProperty('--d', (i * 0.06).toFixed(2) + 's');
     flowersEl.appendChild(f);
+  });
+
+  // 500点からは花がたくさん増えて、色とりどりの花畑になる（盤面の後ろなので、穴にはかからない）
+  //   [左からの位置%, 下からの位置%, 大きさpx]
+  const MORE_FLOWERS = [];
+  [[1, 0], [4, 3.5], [7, 0], [10, 3.5], [13, 7]].forEach(([y, shift]) => {
+    for (let x = 1 + shift; x < 100; x += 7) MORE_FLOWERS.push([x, y, 20 + ((x * 7 + y * 3) % 4) * 3]);
+  });
+  [20, 26, 32, 38, 44, 50, 56, 62, 68].forEach((y, i) => {   // 画面の左右のはし（パソコンや横長の画面で見える）
+    MORE_FLOWERS.push([1.5 + (i % 2) * 3, y, 22], [96.5 - (i % 2) * 3, y, 22]);
+  });
+  const MORE_PETALS = [
+    ['#ff5c7a', '#ffd84a'], ['#ffa94d', '#fff3b0'], ['#ffe14a', '#ff8c42'], ['#ff8fd1', '#ffd84a'],
+    ['#b48cff', '#fff3b0'], ['#6fb6ff', '#ffe14a'], ['#ffffff', '#ffc93a'], ['#ff6bd6', '#fff3b0'],
+  ];
+  MORE_FLOWERS.forEach(([x, y, size], i) => {
+    const f = document.createElement('i');
+    f.className = 'flower extra';
+    f.style.left = `calc(${x}% - ${size / 2}px)`;
+    f.style.bottom = `calc(${y}% + 6px + env(safe-area-inset-bottom))`;
+    f.style.width = f.style.height = size + 'px';
+    const [petal, center] = MORE_PETALS[(i * 3) % MORE_PETALS.length];
+    f.style.setProperty('--petal', petal);
+    f.style.setProperty('--center', center);
+    f.style.setProperty('--d', (0.3 + (i % 12) * 0.05).toFixed(2) + 's');
+    flowersEl.appendChild(f);
+  });
+
+  // 500点からの、空と地面のキラキラ
+  const glitterEl = document.getElementById('glitter');
+  const GLINTS = [
+    [8, 6], [22, 14], [36, 4], [48, 18], [60, 8], [70, 20], [80, 26], [94, 30],
+    [14, 22], [42, 10], [55, 24], [30, 26], [4, 40], [95, 50], [3, 70], [97, 82], [50, 95], [20, 92], [78, 93],
+  ];
+  GLINTS.forEach(([x, y], i) => {
+    const g = document.createElement('i');
+    g.className = 'glint';
+    g.style.left = x + '%';
+    g.style.top = y + '%';
+    g.style.setProperty('--s', 16 + (i % 4) * 5 + 'px');
+    g.style.animationDelay = (-(i * 0.37) % 2.4).toFixed(2) + 's';
+    g.style.animationDuration = (2 + (i % 3) * 0.5) + 's';
+    glitterEl.appendChild(g);
   });
 
   // ---------- 最高得点の保存 ----------

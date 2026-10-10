@@ -4,7 +4,7 @@
 // ・新しいバージョンは、ページ（pwa.js）から「切り替えてOK」と言われるまで待機する
 //   （プレイ中に突然切り替わらないように）
 // ・ゲームを更新して公開する時は、必ず CACHE_VERSION の数字を上げる（古いキャッシュは自動で削除）
-const CACHE_VERSION = 'v8';
+const CACHE_VERSION = 'v9';
 const CACHE_PREFIX = 'mogura-';
 const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 const NETWORK_TIMEOUT_MS = 3000; // 電波が弱い時は3秒でキャッシュに切り替える
