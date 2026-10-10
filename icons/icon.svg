@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fd8ff"/>
+      <stop offset="1" stop-color="#d4f3ff"/>
+    </linearGradient>
+    <linearGradient id="grass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fdc6a"/>
+      <stop offset="1" stop-color="#5fbf3e"/>
+    </linearGradient>
+    <radialGradient id="fur" cx="0.4" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#c48e5c"/>
+      <stop offset="0.7" stop-color="#8b5a2b"/>
+      <stop offset="1" stop-color="#7a4d23"/>
+    </radialGradient>
+    <radialGradient id="hole" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#2e1b0d"/>
+      <stop offset="1" stop-color="#5b3a1e"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 空と草原 -->
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <rect y="318" width="512" height="194" fill="url(#grass)"/>
+  <circle cx="60" cy="470" r="9" fill="#ffd6e8"/>
+  <circle cx="460" cy="356" r="8" fill="#fff59d"/>
+  <circle cx="470" cy="478" r="7" fill="#a3e57f"/>
+
+  <!-- キラキラ -->
+  <path d="M88 52 L98 84 L130 94 L98 104 L88 136 L78 104 L46 94 L78 84 Z" fill="#ffe066" stroke="#fff" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M432 58 L439 80 L461 87 L439 94 L432 116 L425 94 L403 87 L425 80 Z" fill="#ffe066" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="462" cy="176" r="8" fill="#fff"/>
+  <circle cx="54" cy="200" r="6" fill="#fff"/>
+
+  <!-- 穴 -->
+  <ellipse cx="256" cy="404" rx="176" ry="54" fill="url(#hole)"/>
+
+  <!-- 耳 -->
+  <circle cx="148" cy="150" r="42" fill="#8b5a2b"/>
+  <circle cx="148" cy="150" r="22" fill="#f4a7a7"/>
+  <circle cx="364" cy="150" r="42" fill="#8b5a2b"/>
+  <circle cx="364" cy="150" r="22" fill="#f4a7a7"/>
+
+  <!-- 体 -->
+  <path d="M120 420 L120 250 C120 150 180 96 256 96 C332 96 392 150 392 250 L392 420 Z" fill="url(#fur)"/>
+
+  <!-- 目 -->
+  <ellipse cx="204" cy="226" rx="18" ry="23" fill="#2b1a0e"/>
+  <ellipse cx="308" cy="226" rx="18" ry="23" fill="#2b1a0e"/>
+  <circle cx="198" cy="217" r="7.5" fill="#fff"/>
+  <circle cx="302" cy="217" r="7.5" fill="#fff"/>
+
+  <!-- ほっぺ -->
+  <ellipse cx="164" cy="282" rx="26" ry="15" fill="#ff9eb0" opacity="0.9"/>
+  <ellipse cx="348" cy="282" rx="26" ry="15" fill="#ff9eb0" opacity="0.9"/>
+
+  <!-- 口と鼻 -->
+  <ellipse cx="256" cy="318" rx="46" ry="38" fill="#f3d7b6"/>
+  <path d="M256 300 L256 324 M234 324 Q245 338 256 324 Q267 338 278 324" fill="none" stroke="#6b3f1e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="256" cy="282" rx="32" ry="23" fill="#ff7a9a"/>
+  <ellipse cx="245" cy="274" rx="9" ry="7" fill="#fff" opacity="0.75"/>
+
+  <!-- 手前の土 -->
+  <path d="M60 404 C130 446 382 446 452 404 C474 452 420 500 256 500 C92 500 38 452 60 404 Z" fill="#a86b3c"/>
+  <path d="M74 462 C130 492 382 492 438 462 C420 488 360 500 256 500 C152 500 92 488 74 462 Z" fill="#8a5329"/>
+
+  <!-- 手 -->
+  <ellipse cx="190" cy="412" rx="38" ry="22" fill="#f3c9a0"/>
+  <ellipse cx="322" cy="412" rx="38" ry="22" fill="#f3c9a0"/>
+  <path d="M178 402 L178 414 M192 400 L192 414 M206 402 L206 414 M310 402 L310 414 M324 400 L324 414 M338 402 L338 414" stroke="#c99a6e" stroke-width="4" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>もぐらたたき</title>
+
+  <!-- PWA（ホーム画面に追加して、アプリのように遊ぶための設定） -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#bfe9ff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="もぐらたたき">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="sky">
+    <div class="sun"></div>
+    <div class="cloud c1"></div>
+    <div class="cloud c2"></div>
+  </div>
+
+  <main class="game">
+    <h1 class="title">もぐらたたき</h1>
+
+    <div class="status">
+      <div class="badge">⏰ <span id="time">45</span>秒</div>
+      <div class="badge">⭐ <span id="score">0</span>点</div>
+      <div class="badge">👑 <span id="best">0</span>点</div>
+    </div>
+
+    <div class="board" id="board"></div>
+
+    <button class="btn" id="startBtn">スタート！</button>
+  </main>
+
+  <div class="overlay hidden" id="result">
+    <div class="card">
+      <h2>おしまい！</h2>
+      <p class="final"><span id="finalScore">0</span>点</p>
+      <p class="newRecord hidden" id="newRecord">🎉 さいこう記録！ 🎉</p>
+      <p class="bestText">さいこう得点：<span id="finalBest">0</span>点</p>
+      <button class="btn" id="retryBtn">もう一度あそぶ</button>
+    </div>
+  </div>
+
+  <template id="holeTemplate">
+    <div class="hole">
+      <div class="aura"></div>
+      <div class="mole-wrap">
+        <div class="mole">
+          <div class="wing left"></div>
+          <div class="wing right"></div>
+          <div class="horn left"></div>
+          <div class="horn right"></div>
+          <div class="ear left"></div>
+          <div class="ear right"></div>
+          <div class="face">
+            <div class="eye left"></div>
+            <div class="eye right"></div>
+            <div class="cheek left"></div>
+            <div class="cheek right"></div>
+            <div class="nose"></div>
+            <div class="mouth"></div>
+          </div>
+          <div class="paw left"></div>
+          <div class="paw right"></div>
+          <div class="halo"></div>
+        </div>
+      </div>
+      <div class="dirt"></div>
+      <div class="sparkles">
+        <i></i><i></i><i></i><i></i><i></i><i></i>
+        <b></b><b></b><b></b><b></b>
+      </div>
+    </div>
+  </template>
+
+  <script src="script.js"></script>
+  <script>
+    // オフラインでも遊べるように Service Worker を登録（https または localhost のときだけ動く）
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(() => { /* 登録できなくてもゲームは遊べる */ });
+      });
+    }
+  </script>
+</body>
+</html>
