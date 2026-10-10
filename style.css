@@ -11,11 +11,26 @@ html, body {
   overscroll-behavior: none;   /* 引っぱった時の「びよーん」を止める */
 }
 
+/* 背景（空・地面・虹・花・雨など）を描く高さ。
+   ふだんは画面の高さ（100%）。ホーム画面のアプリでは、iPhone によって 100% が画面の一番下まで届かず
+   すき間ができることがあるので、画面全体の高さまで広げる（さらに pwa.js が実際の画面の高さを入れる）。
+   盤面やボタン（.game）の大きさ・位置は変えない */
+:root { --scene-h: 100%; }
+@supports (height: 100lvh) {
+  @media (display-mode: standalone) {
+    :root { --scene-h: max(100%, 100lvh); }
+  }
+}
+
+html {
+  /* 万一、背景が届かない所があっても、空と地面の色が見えるようにしておく */
+  background: #6cc24a linear-gradient(#bfe9ff, #dff6ff) top / 100% 28% no-repeat;
+}
+
 body {
   position: fixed;             /* iPhoneで画面全体が上下に動かないように固定 */
   inset: 0;
   font-family: "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
-  background: linear-gradient(#bfe9ff 0%, #dff6ff 28%, #8fdc6a 28%, #6cc24a 100%);
   color: #5a3a1e;
   user-select: none;
   -webkit-user-select: none;
@@ -24,11 +39,24 @@ body {
   touch-action: manipulation;
 }
 
+/* 背景の土台（空と地面） */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--scene-h);
+  background: linear-gradient(#bfe9ff 0%, #dff6ff 28%, #8fdc6a 28%, #6cc24a 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* ---------- 空と飾り ---------- */
 .sky {
   position: fixed;
   inset: 0 0 auto 0;
-  height: 28%;
+  height: calc(var(--scene-h) * .28);
   pointer-events: none;
   z-index: 0;
 }
@@ -137,7 +165,8 @@ body {
 /* 雨の日は地面も少し暗く */
 .ground-shade {
   position: fixed;
-  inset: 28% 0 0 0;
+  inset: calc(var(--scene-h) * .28) 0 auto 0;
+  height: calc(var(--scene-h) * .72);
   z-index: 0;
   pointer-events: none;
   background: #35485c;
@@ -150,7 +179,8 @@ body {
 /* 雨粒（盤面の後ろを降るので、モグラにはかからない） */
 .rain {
   position: fixed;
-  inset: 0;
+  inset: 0 0 auto 0;
+  height: var(--scene-h);
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
@@ -174,7 +204,8 @@ body {
 /* 快晴で咲く花 */
 .flowers {
   position: fixed;
-  inset: 0;
+  inset: 0 0 auto 0;
+  height: var(--scene-h);
   z-index: 0;
   pointer-events: none;
 }
@@ -270,7 +301,8 @@ body {
 /* 地面にも、太陽のあたたかい光をうっすら */
 .sunlight {
   position: fixed;
-  inset: 0;
+  inset: 0 0 auto 0;
+  height: var(--scene-h);
   z-index: 0;
   pointer-events: none;
   background:
@@ -287,7 +319,8 @@ body {
 /* 空や地面できらめく光の粒 */
 .glitter {
   position: fixed;
-  inset: 0;
+  inset: 0 0 auto 0;
+  height: var(--scene-h);
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
@@ -313,7 +346,8 @@ body {
 /* 500点になった瞬間：背景がふわっと明るく光る（盤面の後ろだけを照らす） */
 .sunburst {
   position: fixed;
-  inset: 0;
+  inset: 0 0 auto 0;
+  height: var(--scene-h);
   z-index: 0;
   pointer-events: none;
   background:
@@ -351,11 +385,14 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  /* 文字・すき間の大きさは、画面の幅と高さに合わせて自動で変える（小さい iPhone では小さめ、大きい画面では大きめ） */
+  gap: clamp(8px, 1.6vh, 18px);
+  gap: clamp(8px, 1.6dvh, 18px);
 }
 
 .title {
-  font-size: clamp(28px, 8vw, 42px);
+  font-size: clamp(26px, min(8vw, 5.2vh), 46px);
+  font-size: clamp(26px, min(8vw, 5.2dvh), 46px);
   color: #fff;
   letter-spacing: 2px;
   text-shadow:
@@ -378,7 +415,8 @@ body {
   border-radius: 999px;
   padding: 6px 14px;
   font-weight: bold;
-  font-size: clamp(14px, 4vw, 18px);
+  font-size: clamp(13px, min(4vw, 2.2vh), 20px);
+  font-size: clamp(13px, min(4vw, 2.2dvh), 20px);
   box-shadow: 0 3px 0 #c98f5a;
 }
 .badge.hurry {
@@ -389,8 +427,19 @@ body {
 @keyframes pulse { to { transform: scale(1.08); } }
 
 /* ---------- 盤面 ---------- */
+/* 盤面を置く場所：題名・得点・ボタンを置いた残りの高さを、ぜんぶ使う。
+   ただし縦長の画面で間が空きすぎないよう、盤面より少し大きいくらいまでにとどめる（残りは上下に均等に分ける） */
+.board-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-height: calc(min(100vw, 520px) + 8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .board {
-  /* 画面の高さが足りない時は盤面を小さくして、スクロールなしで全部見えるようにする */
+  /* 古い iPhone 用：画面の高さが足りない時は盤面を小さくして、スクロールなしで全部見えるようにする */
   --reserved: calc(260px + env(safe-area-inset-top) + env(safe-area-inset-bottom));
   width: min(100%, calc(100vh - var(--reserved)));
   width: min(100%, calc(100dvh - var(--reserved)));
@@ -410,6 +459,13 @@ body {
     radial-gradient(circle at 45% 90%, #ffd6e8 0 5px, transparent 6px),
     radial-gradient(circle at 90% 15%, #fff59d 0 5px, transparent 6px);
   background-size: 120px 120px;
+}
+
+/* 新しいブラウザ（iOS 16 以降など）：置き場所の幅と高さの、小さいほうに合わせた大きさにする。
+   穴の大きさも盤面に合わせて自動で変わる */
+@supports (width: 1cqmin) {
+  .board-area { container-type: size; }
+  .board { width: 100cqmin; }
 }
 
 .hole {
@@ -981,7 +1037,8 @@ body {
 /* 画面全体を一瞬だけ赤紫に光らせる */
 .flash {
   position: fixed;
-  inset: 0;
+  inset: 0 0 auto 0;
+  height: var(--scene-h);
   z-index: 50;
   pointer-events: none;
   background: radial-gradient(circle at 50% 55%, rgba(255, 60, 90, .35), rgba(140, 30, 200, .22) 60%, transparent 100%);
@@ -1038,13 +1095,15 @@ body {
 /* ---------- ボタン ---------- */
 .btn {
   font-family: inherit;
-  font-size: clamp(20px, 6vw, 26px);
+  font-size: clamp(18px, min(6vw, 3.2vh), 27px);
+  font-size: clamp(18px, min(6vw, 3.2dvh), 27px);
   font-weight: bold;
   color: #fff;
   background: #ff8fab;
   border: none;
   border-radius: 999px;
   padding: 14px 44px;
+  padding: clamp(10px, 1.7dvh, 16px) 44px;
   box-shadow: 0 6px 0 #e0607f;
   cursor: pointer;
   transition: transform .08s, box-shadow .08s;
@@ -1060,7 +1119,8 @@ body {
 /* ---------- 結果画面 ---------- */
 .overlay {
   position: fixed;
-  inset: 0;
+  inset: 0 0 auto 0;
+  height: var(--scene-h);   /* 暗い幕も画面の一番下まで */
   z-index: 10;
   display: flex;
   align-items: center;

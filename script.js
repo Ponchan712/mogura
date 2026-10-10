@@ -37,6 +37,29 @@
 
   bestEl.textContent = best;
 
+  // ---------- iPhone のホーム画面のアプリで、背景を画面の一番下まで描く ----------
+  // ホーム画面のアプリは画面全体を使うのに、iPhone によっては 100% の高さが下まで届かず、すき間ができる。
+  // そこで、実際の画面の高さを --scene-h に入れて、背景（style.css）をそこまで広げる。
+  // 盤面やボタンの位置は変えない。ブラウザで開いた時やパソコンでは何もしない
+  function fitScene() {
+    if (navigator.standalone !== true) return; // iPhone・iPad のホーム画面のアプリだけ
+    const long = Math.max(screen.width, screen.height);
+    const short = Math.min(screen.width, screen.height);
+    const portrait = window.innerHeight >= window.innerWidth;
+    const screenW = portrait ? short : long;
+    const screenH = portrait ? long : short;
+    // iPad の画面分割などで、アプリが画面全体を使っていない時は広げない
+    if (Math.abs(window.innerWidth - screenW) > 2) {
+      document.documentElement.style.removeProperty('--scene-h');
+      return;
+    }
+    document.documentElement.style.setProperty('--scene-h', Math.max(window.innerHeight, screenH) + 'px');
+  }
+  fitScene();
+  window.addEventListener('resize', fitScene);
+  window.addEventListener('orientationchange', () => setTimeout(fitScene, 300));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) fitScene(); });
+
   // ---------- 穴を9個つくる ----------
   for (let i = 0; i < 9; i++) {
     const hole = template.content.firstElementChild.cloneNode(true);
@@ -117,7 +140,7 @@
     const f = document.createElement('i');
     f.className = 'flower extra';
     f.style.left = `calc(${x}% - ${size / 2}px)`;
-    f.style.bottom = `calc(${y}% + 6px + env(safe-area-inset-bottom))`;
+    f.style.bottom = `calc(${y}% + 4px)`; // 花畑は飾りなので、iPhone の画面の一番下（ホームバーの後ろ）まで咲かせる
     f.style.width = f.style.height = size + 'px';
     const [petal, center] = MORE_PETALS[(i * 3) % MORE_PETALS.length];
     f.style.setProperty('--petal', petal);
