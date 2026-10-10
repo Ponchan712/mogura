@@ -1154,8 +1154,9 @@ body::before {
   margin: 8px 0;
 }
 .newRecord {
+  font-size: 20px;             /* 「最高記録」の漢字が iPhone でもつぶれず読めるように少し大きく */
   font-weight: bold;
-  color: #e09a00;
+  color: #d48800;
   margin-bottom: 6px;
   animation: pulse .5s ease-in-out infinite alternate;
 }
@@ -1169,6 +1170,7 @@ body::before {
 }
 .bestText {
   margin-bottom: 20px;
+  font-size: 18px;
   font-weight: bold;
 }
 @keyframes bounceIn {
