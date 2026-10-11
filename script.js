@@ -405,15 +405,15 @@
   ];
   const DOUBLE_EXTRA_STAY = 150; // 2匹同時の時は、2回たたけるよう少し長めに顔を出す
 
-  // 2匹同時に出る確率（経過秒数ごと）。それ以外は1匹だけ
+  // 2匹同時に出る割合（経過秒数ごと）。それ以外は1匹だけ
   function doubleChance(t) {
     if (t < 25) return 0;
-    if (t < 35) return 0.3;  // 25〜35秒：ときどき
-    return 0.6;              // 35〜45秒：多め
+    if (t < 35) return 0.3;  // 25〜35秒：ときどき（10回に3回）
+    return 0.6;              // 35〜45秒：多め（10回に6回）
   }
 
-  function currentSpeed() {
-    const t = Math.min(Math.max(elapsed(), 0), GAME_TIME);
+  function speedAt(t) {
+    t = Math.min(Math.max(t, 0), GAME_TIME);
     for (let i = 1; i < SPEED_TABLE.length; i++) {
       const a = SPEED_TABLE[i - 1];
       const b = SPEED_TABLE[i];
@@ -427,6 +427,77 @@
     }
     const last = SPEED_TABLE[SPEED_TABLE.length - 1];
     return { stay: last.stay, gap: last.gap };
+  }
+
+  // ---------- 出現の予定（ゲームを始める時に、45秒ぶんを全部決めておく） ----------
+  // 運で得点が大きく変わらないよう、出る回数・2匹同時の回数・種類の割合は毎回ほぼ同じにする（穴の場所と順番はランダム）。
+  //   ・出る時刻：たたいても見逃しても変わらない、決まった間隔（後半ほど速い）。一時停止しても予定はずれない
+  //   ・2匹同時：10回ずつの袋から引く（25〜35秒は10回に3回、35〜45秒は10回に6回）
+  //   ・種類：10匹ずつの袋から引く（普通4・悪3・天使3）。
+  //     天使は3回続けて出さない・天使だけの回は続けない・1匹だけの回で同じ種類を3回続けない
+  const FIRST_SPAWN_MS = 600;   // スタートから最初のもぐらまで
+  const LAST_SPAWN_MS = 300;    // 終了まぎわ（残り0.3秒未満）には出さない
+  const TYPE_BAG = [
+    ...Array(Math.round(BAD_RATE * 10)).fill('bad'),
+    ...Array(Math.round(ANGEL_RATE * 10)).fill('angel'),
+  ];
+  while (TYPE_BAG.length < 10) TYPE_BAG.push('normal');
+  let plan = [];              // [{ at: 出る時刻（ゲームの経過ms）, stay: 顔を出す時間, types: ['normal', ...] }]
+  let planIndex = 0;          // 次に出す回
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function buildPlan() {
+    // 出る時刻と匹数
+    const waves = [];
+    const doubleBags = {};
+    for (let at = FIRST_SPAWN_MS; at < GAME_TIME * 1000 - LAST_SPAWN_MS;) {
+      const t = at / 1000;
+      const rate = doubleChance(t);
+      let count = 1;
+      if (rate > 0) {
+        if (!doubleBags[rate] || doubleBags[rate].length === 0) {
+          const n = Math.round(rate * 10);
+          doubleBags[rate] = shuffle([...Array(n).fill(2), ...Array(10 - n).fill(1)]);
+        }
+        count = doubleBags[rate].pop();
+      }
+      const { stay, gap } = speedAt(t);
+      const s = stay + (count === 2 ? DOUBLE_EXTRA_STAY : 0);
+      waves.push({ at, stay: s, count, types: [] });
+      at += s + HIDE_MS + gap; // 引っ込みきって、間隔をあけてから次の回
+    }
+
+    // 種類
+    let bag = [];
+    const has = (w, type) => !!w && w.types.includes(type);
+    const allowed = (type, w, i) => {
+      if (w.types.includes(type)) return false; // 2匹の時は必ず別々の種類
+      const p1 = waves[i - 1], p2 = waves[i - 2];
+      if (type === 'angel' && has(p1, 'angel') && has(p2, 'angel')) return false;
+      if (type === 'angel' && w.count === 1 && p1 && p1.count === 1 && has(p1, 'angel')) return false;
+      if (w.count === 1 && p1 && p2 && p1.count === 1 && p2.count === 1 && has(p1, type) && has(p2, type)) return false;
+      return true;
+    };
+    waves.forEach((w, i) => {
+      for (let k = 0; k < w.count; k++) {
+        const choices = () => bag.map((type, j) => j).filter((j) => allowed(bag[j], w, i));
+        let c = choices();
+        if (c.length === 0) {
+          bag = bag.concat(shuffle(TYPE_BAG.slice())); // 選べる種類が残っていない時は、次の袋を足す
+          c = choices();
+        }
+        if (c.length === 0) c = bag.map((type, j) => j).filter((j) => !w.types.includes(bag[j]));
+        w.types.push(bag.splice(c[Math.floor(Math.random() * c.length)], 1)[0]);
+      }
+    });
+    return waves;
   }
 
   // 次のもぐらを出す予約と、もぐらを引っ込める予約。
@@ -454,7 +525,7 @@
     spawnLeft = null;
     holes.forEach((h) => { h.hideLeft = null; });
     showPaused(false);
-    activeMoles.clear();      // 先に空にしておき、hideMole から次の出現が予約されないようにする
+    activeMoles.clear();
     holes.forEach(hideMole);
   }
 
@@ -529,7 +600,9 @@
     sound.start();
 
     clockTimer = setInterval(updateClock, 100);
-    setSpawn(600);
+    plan = buildPlan();
+    planIndex = 0;
+    scheduleNext();
   }
 
   function updateClock() {
@@ -540,45 +613,23 @@
     if (left <= 0) endGame();
   }
 
-  // 1回に出すのは1匹か2匹。出たもぐらが全部引っ込みきってから、次を出す
+  // 予定どおりの時刻に、決めておいた1匹か2匹を出す（穴はランダム。いま出ている穴は選ばない）
   function spawnMole() {
     spawnTimer = null;
-    if (!playing || activeMoles.size > 0) return;
-    const t = elapsed();
-    const count = Math.random() < doubleChance(t) ? 2 : 1;
-
-    // 種類：2匹の時は必ず別々の種類にする
-    const types = [pickType([])];
-    if (count === 2) types.push(pickType(types));
-
-    // 穴：2匹の時は必ず別々の穴にする
-    const free = holes.slice();
-    const stay = currentSpeed().stay + (count === 2 ? DOUBLE_EXTRA_STAY : 0);
-    types.forEach((type) => {
+    if (!playing || planIndex >= plan.length) return;
+    const w = plan[planIndex++];
+    const free = holes.filter((h) => !activeMoles.has(h));
+    w.types.forEach((type) => {
       const h = free.splice(Math.floor(Math.random() * free.length), 1)[0];
-      showMole(h, type, stay);
+      showMole(h, type, w.stay);
     });
+    scheduleNext();
   }
 
-  // 出現確率（普通40％・悪30％・天使30％）で種類を選ぶ。exclude にある種類は選ばない
-  function pickType(exclude) {
-    const table = [
-      { type: 'normal', rate: 1 - ANGEL_RATE - BAD_RATE },
-      { type: 'bad', rate: BAD_RATE },
-      { type: 'angel', rate: ANGEL_RATE },
-    ].filter((x) => !exclude.includes(x.type));
-    const total = table.reduce((sum, x) => sum + x.rate, 0);
-    let r = Math.random() * total;
-    for (const x of table) {
-      if ((r -= x.rate) < 0) return x.type;
-    }
-    return table[table.length - 1].type;
-  }
-
+  // 次の回を予約する。予定の時刻はゲームの経過時間で決まっているので、たたいても一時停止しても変わらない
   function scheduleNext() {
-    if (!playing) return;
-    // 引っ込むアニメーションが終わってから、間隔をあけて次を出す（どの種類のもぐらでも同じ間隔）
-    setSpawn(HIDE_MS + currentSpeed().gap);
+    if (!playing || planIndex >= plan.length) return;
+    setSpawn(Math.max(0, plan[planIndex].at - elapsed() * 1000));
   }
 
   function showMole(h, type, stay) {
@@ -600,7 +651,7 @@
     h.hideTimer = null;
     h.up = false;
     h.el.classList.remove('up', 'hit');
-    if (activeMoles.delete(h) && activeMoles.size === 0) scheduleNext();
+    activeMoles.delete(h);
   }
 
   function whack(h) {
