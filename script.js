@@ -404,6 +404,7 @@
     { t: 45, stay: 450, gap: 50 },
   ];
   const DOUBLE_EXTRA_STAY = 150; // 2匹同時の時は、2回たたけるよう少し長めに顔を出す
+  const DOUBLE_AFTER_HIT_MS = 400; // 2匹同時で1匹目をたたいた時、もう1匹を少なくともこの時間は残す（すぐ消えて2匹目をたたけない、を防ぐ）
 
   // 2匹同時に出る割合（経過秒数ごと）。それ以外は1匹だけ
   function doubleChance(t) {
@@ -621,7 +622,7 @@
     const free = holes.filter((h) => !activeMoles.has(h));
     w.types.forEach((type) => {
       const h = free.splice(Math.floor(Math.random() * free.length), 1)[0];
-      showMole(h, type, w.stay);
+      showMole(h, type, w.stay, planIndex);
     });
     scheduleNext();
   }
@@ -632,10 +633,11 @@
     setSpawn(Math.max(0, plan[planIndex].at - elapsed() * 1000));
   }
 
-  function showMole(h, type, stay) {
+  function showMole(h, type, stay, wave) {
     activeMoles.add(h);
     h.up = true;
     h.type = type;
+    h.wave = wave;            // 何回目に出たか（2匹同時の相手を見分ける）
     h.el.classList.remove('hit');
     h.el.classList.toggle('angel', h.type === 'angel');
     h.el.classList.toggle('bad', h.type === 'bad');
@@ -657,7 +659,12 @@
   function whack(h) {
     if (!playing || paused || !h.up || h.el.classList.contains('hit')) return; // 一時停止中は得点が変わらない
     clearTimeout(h.hideTimer);
-    h.el.classList.add('hit');
+    h.el.classList.add('hit'); // ここで「たたいた」印を付けるので、同じもぐらで二重に得点は入らない
+    // 2匹同時の時：たたいたのは、この1匹だけ。もう1匹は残し、すぐ消えないよう少なくとも DOUBLE_AFTER_HIT_MS は出しておく
+    activeMoles.forEach((o) => {
+      if (o !== h && o.wave === h.wave && o.up && !o.el.classList.contains('hit') && o.hideTimer
+          && o.hideDue - performance.now() < DOUBLE_AFTER_HIT_MS) setHide(o, DOUBLE_AFTER_HIT_MS);
+    });
     if (h.type === 'bad') {
       score += BAD_POINT;
       sound.jackpot();
