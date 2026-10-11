@@ -5,12 +5,12 @@
 //     スタート画面にいる時 …… すぐに切り替える
 //     プレイ中 ……………………… 切り替えない（ゲームが終わるまで待つ）
 //     結果画面 ……………………… 「もう一度あそぶ」を押した時か、アプリを閉じた時に切り替える
-// バージョン表示：service-worker.js の CACHE_VERSION をそのまま右下に出す（バージョンを書くのは service-worker.js の1か所だけ。
+// バージョン表示：service-worker.js の CACHE_VERSION を「ver14」の形で右下に出す（バージョンを書くのは service-worker.js の1か所だけ。
 // 公開する時に publish.ps1 が数字を上げれば、表示も自動で変わる）。オフラインの時は保存してあるキャッシュの名前から読む
 (() => {
   const versionEl = document.getElementById('version');
   if (!versionEl || location.protocol === 'file:') return;
-  const show = (v) => { if (v) versionEl.textContent = v; };
+  const show = (v) => { if (v) versionEl.textContent = v.replace(/^v(\d+)$/, 'ver$1'); }; // v14 → ver14
   fetch('service-worker.js', { cache: 'no-cache' })
     .then((res) => (res.ok ? res.text() : Promise.reject(new Error(res.status))))
     .then((text) => show((text.match(/CACHE_VERSION\s*=\s*'([^']+)'/) || [])[1]))
